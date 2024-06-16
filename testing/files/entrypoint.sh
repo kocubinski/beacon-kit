@@ -49,6 +49,7 @@ ETH_GENESIS=$(resolve_path "./testing/files/eth-genesis.json")
 
 # used to exit on first error (any non-zero exit code)
 set -e
+set -x
 
 # Reinstall daemon
 make build
@@ -92,4 +93,4 @@ if [ -n "$RPC_DIAL_URL" ]; then
 fi
 
 # run the beacon node
-eval $BEACON_START_CMD
+# eval $BEACON_START_CMD
