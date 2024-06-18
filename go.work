@@ -24,3 +24,8 @@ use (
 	./mod/storage
 	./testing
 )
+
+replace (
+	github.com/ferranbt/fastssz => ../fastssz
+	github.com/cosmos/cosmos-sdk => ../cosmos-sdk
+)

@@ -21,6 +21,8 @@
 package state
 
 import (
+	"fmt"
+	"os"
 	"reflect"
 
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/state"
@@ -404,5 +406,36 @@ func (s *StateDB[
 	if err != nil {
 		return [32]byte{}, err
 	}
+	t, err := st.GetTree()
+	if err != nil {
+		return [32]byte{}, err
+	}
+
+	f, err := os.Create("/tmp/tree.dot")
+	if err != nil {
+		return [32]byte{}, err
+	}
+	t.Draw(f)
+	f2, _ := os.Create("/tmp/level_orders.txt")
+	var missCount int
+	for i := 1; ; i++ {
+		n, err := t.Get(i)
+		if err != nil {
+			missCount++
+			if missCount > 10 {
+				f2.WriteString(fmt.Sprintf("END at %d\n", i))
+				break
+			}
+			continue
+		}
+		missCount = 0
+		if _, ferr := f2.WriteString(
+			fmt.Sprintf("gidx=%d hash=%x\n", i, n.Hash())); ferr != nil {
+			return [32]byte{}, ferr
+		}
+	}
+	f3, _ := os.Create("/tmp/beacon.ssz")
+	bz, _ := st.MarshalSSZ()
+	f3.Write(bz)
 	return st.HashTreeRoot()
 }
