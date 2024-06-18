@@ -24,10 +24,10 @@ import (
 	"context"
 	"time"
 
+	asynctypes "github.com/berachain/beacon-kit/mod/async/pkg/types"
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/genesis"
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/events"
-	"github.com/berachain/beacon-kit/mod/primitives/pkg/feed"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/math"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/transition"
 	"golang.org/x/sync/errgroup"
@@ -46,15 +46,13 @@ func (s *Service[
 ]) ProcessGenesisData(
 	ctx context.Context,
 	genesisData *genesis.Genesis[
-		DepositT, *types.ExecutionPayloadHeaderDeneb,
+		DepositT, *types.ExecutionPayloadHeader,
 	],
 ) ([]*transition.ValidatorUpdate, error) {
 	return s.sp.InitializePreminedBeaconStateFromEth1(
 		s.sb.StateFromContext(ctx),
 		genesisData.Deposits,
-		&types.ExecutionPayloadHeader{
-			InnerExecutionPayloadHeader: genesisData.ExecutionPayloadHeader,
-		},
+		genesisData.ExecutionPayloadHeader,
 		genesisData.ForkVersion,
 	)
 }
@@ -122,7 +120,9 @@ func (s *Service[
 	// We won't send a fcu if the block is bad, should be addressed
 	// via ticker later.
 	go func() {
-		s.blockFeed.Send(feed.NewEvent(ctx, events.BeaconBlockFinalized, (blk)))
+		s.blockFeed.Send(
+			asynctypes.NewEvent(ctx, events.BeaconBlockFinalized, blk),
+		)
 		s.sendPostBlockFCU(ctx, st, blk)
 	}()
 
