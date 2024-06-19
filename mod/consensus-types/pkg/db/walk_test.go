@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"bytes"
 	"os"
 	"testing"
 
@@ -32,4 +33,5 @@ func TestBeaconState_Storage(t *testing.T) {
 	root, err := db.Tree(state)
 	require.NoError(t, err)
 	require.NotNil(t, root)
+	require.True(t, bytes.Equal(rootHash[:], root.Hash()))
 }
