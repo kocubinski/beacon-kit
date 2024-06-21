@@ -87,7 +87,7 @@ func TestDB_Bespoke(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, beacon.Fork, fork)
 
-	// latestHeader, err := db.GetLatestBlockHeader()
-	// require.NoError(t, err)
-	// require.Equal(t, beacon.LatestBlockHeader, latestHeader)
+	latestHeader, err := db.GetLatestBlockHeader()
+	require.NoError(t, err)
+	require.Equal(t, beacon.LatestBlockHeader, latestHeader)
 }

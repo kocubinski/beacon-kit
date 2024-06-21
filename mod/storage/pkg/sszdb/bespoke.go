@@ -1,7 +1,6 @@
 package sszdb
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
@@ -47,23 +46,29 @@ func (d *DB) GetFork() (*types.Fork, error) {
 	gindex := powerTwo(depth) * rootGindex
 
 	f := &types.Fork{}
+	// field 0
 	bz, err := d.getNodeBytes(gindex, 4)
 	if err != nil {
 		return nil, err
 	}
 	copy(f.PreviousVersion[:], bz)
+
+	// field 1
 	gindex++
 	bz, err = d.getNodeBytes(gindex, 4)
 	if err != nil {
 		return nil, err
 	}
 	copy(f.CurrentVersion[:], bz)
+
+	// field 2
 	gindex++
 	bz, err = d.getNodeBytes(gindex, 8)
 	if err != nil {
 		return nil, err
 	}
 	f.Epoch = pmath.Epoch(ssz.UnmarshallUint64(bz))
+
 	return f, nil
 }
 
@@ -71,14 +76,50 @@ func (d *DB) GetLatestBlockHeader() (*types.BeaconBlockHeader, error) {
 	const parentNumFields = 5
 	const rootGindex = 19
 
-	relativeHeight := ceilLog2(nextPowerOfTwo(parentNumFields) * 2)               // 4
-	totalHeight := ceilLog2(nextPowerOfTwo(parentNumFields*2)*2) + relativeHeight // 8
-	leafOffset := powerTwo(totalHeight - relativeHeight - 1)
-	gindex := powerTwo(totalHeight-1) + leafOffset // 64 + 8 = 72
+	depth := ceilLog2(parentNumFields)
+	gindex := powerTwo(depth) * rootGindex
 
-	fmt.Println("gindex", gindex)
+	h := &types.BeaconBlockHeader{}
+	// field 0
+	bz, err := d.getNodeBytes(gindex, 8)
+	if err != nil {
+		return nil, err
+	}
+	h.Slot = ssz.UnmarshallUint64(bz)
+	gindex++
 
-	return nil, nil
+	// field 1
+	bz, err = d.getNodeBytes(gindex, 8)
+	if err != nil {
+		return nil, err
+	}
+	h.ProposerIndex = ssz.UnmarshallUint64(bz)
+	gindex++
+
+	// field 2
+	bz, err = d.getNodeBytes(gindex, 32)
+	if err != nil {
+		return nil, err
+	}
+	copy(h.ParentBlockRoot[:], bz)
+	gindex++
+
+	// field 3
+	bz, err = d.getNodeBytes(gindex, 32)
+	if err != nil {
+		return nil, err
+	}
+	copy(h.StateRoot[:], bz)
+	gindex++
+
+	// field 4
+	bz, err = d.getNodeBytes(gindex, 32)
+	if err != nil {
+		return nil, err
+	}
+	copy(h.BodyRoot[:], bz)
+
+	return h, nil
 }
 
 // registry
