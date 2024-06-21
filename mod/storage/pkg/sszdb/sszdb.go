@@ -1,11 +1,14 @@
 package sszdb
 
 import (
+	"bytes"
 	"encoding/binary"
+	"io"
+	"math"
 
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/state/deneb"
-	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
 	"github.com/berachain/beacon-kit/mod/errors"
+	"github.com/berachain/beacon-kit/mod/storage/pkg/sszdb/tree"
 	"github.com/cockroachdb/pebble"
 	ssz "github.com/ferranbt/fastssz"
 )
@@ -20,8 +23,15 @@ type DB struct {
 	monolith *deneb.BeaconState
 }
 
-func New() (*DB, error) {
-	db, err := pebble.Open(devDBPath, &pebble.Options{})
+type Config struct {
+	Path string
+}
+
+func New(cfg Config) (*DB, error) {
+	if cfg.Path == "" {
+		cfg.Path = devDBPath
+	}
+	db, err := pebble.Open(cfg.Path, &pebble.Options{})
 	if err != nil {
 		return nil, err
 	}
@@ -71,10 +81,48 @@ func (d *DB) Save() error {
 	if err != nil {
 		return err
 	}
-	return d.save(root, 1)
+	return d.hackyFastSszSave(root, 1)
 }
 
-func (d *DB) save(node *ssz.Node, gindex uint64) error {
+func keyBytes(gindex uint64) []byte {
+	key := make([]byte, 8)
+	binary.LittleEndian.PutUint64(key, gindex)
+	return key
+}
+
+func (d *DB) SaveMonolith(mono ssz.HashRoot) error {
+	treeRoot, err := tree.NewTreeFromFastSSZ(mono)
+	if err != nil {
+		return err
+	}
+	treeRoot.Hash()
+	return d.save(treeRoot, 1)
+}
+
+func (d *DB) save(node *tree.Node, gindex uint64) error {
+	// Save the node
+	key := keyBytes(gindex)
+	if err := d.Set(key, node.Encode()); err != nil {
+		return err
+	}
+
+	switch {
+	case node.Left == nil && node.Right == nil:
+		return nil
+	case node.Left != nil && node.Right != nil:
+		if err := d.save(node.Left, 2*gindex); err != nil {
+			return err
+		}
+		if err := d.save(node.Right, 2*gindex+1); err != nil {
+			return err
+		}
+	default:
+		return errors.New("node has only one child")
+	}
+	return nil
+}
+
+func (d *DB) hackyFastSszSave(node *ssz.Node, gindex uint64) error {
 	if node == nil {
 		return errors.New("node cannot be nil")
 	}
@@ -82,6 +130,7 @@ func (d *DB) save(node *ssz.Node, gindex uint64) error {
 	// Save the node
 	key := make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, gindex)
+	// TODO this rehashes the entire subtree
 	val := node.Hash()
 	if err := d.Set(key, val); err != nil {
 		return err
@@ -91,13 +140,102 @@ func (d *DB) save(node *ssz.Node, gindex uint64) error {
 	right := getRightNode(node)
 
 	switch {
-	case left != nil && right != nil:
-		return nil
 	case left == nil && right == nil:
-		if err := d.save(left, 2*gindex); err != nil {
+		return nil
+	case left != nil && right != nil:
+		if err := d.hackyFastSszSave(left, 2*gindex); err != nil {
 			return err
 		}
-		if err := d.save(right, 2*gindex+1); err != nil {
+		if err := d.hackyFastSszSave(right, 2*gindex+1); err != nil {
+			return err
+		}
+	default:
+		return errors.New("node has only one child")
+	}
+	return nil
+}
+
+func (d *DB) getNode(gindex uint64) (*tree.Node, error) {
+	key := keyBytes(gindex)
+	bz, err := d.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	if bz == nil {
+		return nil, nil
+	}
+	return tree.DecodeNode(bz)
+}
+
+func (d *DB) mustGetNode(gindex uint64) (*tree.Node, error) {
+	key := keyBytes(gindex)
+	bz, err := d.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	if bz == nil {
+		return nil, errors.New("node not found")
+	}
+	return tree.DecodeNode(bz)
+}
+
+func (d *DB) getNodeBytes(gindex uint64, lenBz uint) ([]byte, error) {
+	const chunksize = 32
+
+	numNodes := int(math.Ceil(float64(lenBz) / chunksize))
+	rem := lenBz % chunksize
+	var (
+		buf bytes.Buffer
+	)
+	for i := 0; i < numNodes; i++ {
+		n, err := d.mustGetNode(gindex + uint64(i))
+		if err != nil {
+			return nil, err
+		}
+		// last node
+		if i == numNodes-1 && rem != 0 {
+			buf.Write(n.Value[:rem])
+		} else {
+			buf.Write(n.Value)
+		}
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (d *DB) Load(um ssz.Unmarshaler) error {
+	root, err := d.getNode(1)
+	var buf bytes.Buffer
+	err = d.leafBytes(root, &buf, 1)
+	if err != nil {
+		return err
+	}
+	return um.UnmarshalSSZ(buf.Bytes())
+}
+
+func (d *DB) leafBytes(node *tree.Node, w io.Writer, gindex uint64) error {
+	li := 2 * gindex
+	ri := 2*gindex + 1
+	left, err := d.getNode(li)
+	if err != nil {
+		return err
+	}
+	right, err := d.getNode(ri)
+	if err != nil {
+		return err
+	}
+	switch {
+	case left == nil && right == nil:
+		if node.IsEmpty {
+			return nil
+		}
+		_, err = w.Write(node.Value)
+		return err
+	case left != nil && right != nil:
+		if err = d.leafBytes(left, w, li); err != nil {
+			return err
+		}
+		if err = d.leafBytes(right, w, ri); err != nil {
 			return err
 		}
 	default:
@@ -120,66 +258,4 @@ func getRightNode(node *ssz.Node) *ssz.Node {
 		return nil
 	}
 	return right
-}
-
-/*
-func drawTree(n *ssz.Node, w io.Writer) {
-	g := dot.NewGraph(dot.Directed)
-	drawNode(n, 1, g)
-	g.Write(w)
-}
-
-func drawNode(n *ssz.Node, levelOrder int, g *dot.Graph) dot.Node {
-	var h string
-	left := getLeftNode(n)
-	right := getRightNode(n)
-	if left != nil || right != nil {
-		h = hex.EncodeToString(n.Hash())
-	}
-	if n.value != nil {
-		h = hex.EncodeToString(n.value)
-	}
-	dn := g.Node(fmt.Sprintf("n%d", levelOrder)).
-		Label(fmt.Sprintf("%d\n%s..%s", levelOrder, h[:3], h[len(h)-3:]))
-
-	if n.left != nil {
-		ln := n.left.draw(2*levelOrder, g)
-		g.Edge(dn, ln).Label("0")
-	}
-	if n.right != nil {
-		rn := n.right.draw(2*levelOrder+1, g)
-		g.Edge(dn, rn).Label("1")
-	}
-	return dn
-}
-*/
-
-// copy tree
-// TODO replace with ssz/v2 impl
-
-// versioning
-
-func (d *DB) SetGenesisValidatorsRoot(root [32]byte) {
-	d.monolith.GenesisValidatorsRoot = root
-}
-
-func (d *DB) GetGenesisValidatorsRoot() [32]byte {
-	return d.monolith.GenesisValidatorsRoot
-}
-
-// registry
-
-func (d *DB) AddValidator(v *types.Validator) {
-	d.monolith.Validators = append(d.monolith.Validators, v)
-}
-
-func (d *DB) UpdateValidatorAtIndex(index int, v *types.Validator) {
-	d.monolith.Validators[index] = v
-}
-
-func (d *DB) RemoveValidatorAtIndex(index int) {
-}
-
-func (d *DB) GetValidators() []*types.Validator {
-	return d.monolith.Validators
 }

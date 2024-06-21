@@ -23,7 +23,7 @@ func testBeaconState() (*deneb.BeaconState, error) {
 	return state, nil
 }
 
-func TestBeaconState_Storage(t *testing.T) {
+func TestTree_Hash(t *testing.T) {
 	state, err := testBeaconState()
 	require.NoError(t, err)
 	rootHash, err := state.HashTreeRoot()
@@ -34,6 +34,7 @@ func TestBeaconState_Storage(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tree)
 	require.True(t, bytes.Equal(rootHash[:], tree.CachedHash()))
+	require.True(t, bytes.Equal(tree.CachedHash(), tree.Hash()))
 
 	f, err := os.Create("/tmp/beacon.dot")
 	require.NoError(t, err)

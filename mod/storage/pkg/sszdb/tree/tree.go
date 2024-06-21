@@ -1,8 +1,10 @@
 package tree
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -65,6 +67,14 @@ func (n *Node) CachedHash() []byte {
 	return n.Value
 }
 
+func (n *Node) Hash() []byte {
+	if n.Left == nil && n.Right == nil {
+		return n.Value
+	}
+	h := sha256.Sum256(append(n.Left.Hash(), n.Right.Hash()...))
+	return h[:]
+}
+
 func (n *Node) DrawTree(w io.Writer) {
 	n.CachedHash()
 	g := dot.NewGraph(dot.Directed)
@@ -86,4 +96,26 @@ func drawNode(n *Node, levelOrder int, g *dot.Graph) dot.Node {
 		g.Edge(dn, rn).Label("1")
 	}
 	return dn
+}
+
+func (n *Node) Encode() []byte {
+	var buf bytes.Buffer
+	if n.IsEmpty {
+		buf.Write([]byte{0})
+	} else {
+		buf.Write([]byte{1})
+	}
+	buf.Write(n.Value)
+	return buf.Bytes()
+}
+
+func DecodeNode(b []byte) (*Node, error) {
+	if len(b) == 0 {
+		return nil, errors.New("empty node")
+	}
+	isEmpty := b[0] == 0
+	return &Node{
+		IsEmpty: isEmpty,
+		Value:   b[1:],
+	}, nil
 }

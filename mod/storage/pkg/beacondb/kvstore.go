@@ -121,7 +121,7 @@ func New[
 ] {
 	schemaBuilder := sdkcollections.NewSchemaBuilder(kss)
 	// TODO pull up and inject.
-	sdb, err := sszdb.New()
+	sdb, err := sszdb.New(sszdb.Config{})
 	if err != nil {
 		panic(err)
 	}
