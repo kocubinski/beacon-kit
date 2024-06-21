@@ -21,7 +21,6 @@
 package core
 
 import (
-	"github.com/berachain/beacon-kit/mod/primitives"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/bytes"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/common"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/constants"
@@ -43,7 +42,7 @@ func (sp *StateProcessor[
 	st BeaconStateT,
 	deposits []DepositT,
 	executionPayloadHeader ExecutionPayloadHeaderT,
-	genesisVersion primitives.Version,
+	genesisVersion common.Version,
 ) ([]*transition.ValidatorUpdate, error) {
 	var (
 		blkHeader BeaconBlockHeaderT
@@ -77,7 +76,7 @@ func (sp *StateProcessor[
 		return nil, err
 	}
 
-	// TODO: we need to handle primitives.Version vs
+	// TODO: we need to handle common.Version vs
 	// uint32 better.
 	bodyRoot, err := blkBody.Empty(
 		version.ToUint32(genesisVersion)).HashTreeRoot()
@@ -100,11 +99,6 @@ func (sp *StateProcessor[
 		}
 	}
 
-	// Prime the db so that processDeposit doesn't fail.
-	if err = st.SetGenesisValidatorsRoot(primitives.Root{}); err != nil {
-		return nil, err
-	}
-
 	for _, deposit := range deposits {
 		// TODO: process deposits into eth1 data.
 		if err = sp.processDeposit(st, deposit); err != nil {
@@ -119,9 +113,9 @@ func (sp *StateProcessor[
 		return nil, err
 	}
 
-	var validatorsRoot primitives.Root
+	var validatorsRoot common.Root
 	validatorsRoot, err = ssz.MerkleizeListComposite[
-		common.ChainSpec, math.U64, [32]byte,
+		common.ChainSpec, math.U64,
 	](validators, uint64(len(validators)))
 	if err != nil {
 		return nil, err
@@ -140,10 +134,10 @@ func (sp *StateProcessor[
 	// Setup a bunch of 0s to prime the DB.
 	for i := range sp.cs.HistoricalRootsLimit() {
 		//#nosec:G701 // won't overflow in practice.
-		if err = st.UpdateBlockRootAtIndex(i, primitives.Root{}); err != nil {
+		if err = st.UpdateBlockRootAtIndex(i, common.Root{}); err != nil {
 			return nil, err
 		}
-		if err = st.UpdateStateRootAtIndex(i, primitives.Root{}); err != nil {
+		if err = st.UpdateStateRootAtIndex(i, common.Root{}); err != nil {
 			return nil, err
 		}
 	}

@@ -28,7 +28,6 @@ import (
 	engineerrors "github.com/berachain/beacon-kit/mod/engine-primitives/pkg/errors"
 	"github.com/berachain/beacon-kit/mod/errors"
 	"github.com/berachain/beacon-kit/mod/execution/pkg/client/ethclient"
-	"github.com/berachain/beacon-kit/mod/primitives"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/common"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/version"
 )
@@ -42,7 +41,7 @@ func (s *EngineClient[ExecutionPayloadT]) NewPayload(
 	ctx context.Context,
 	payload ExecutionPayloadT,
 	versionedHashes []common.ExecutionHash,
-	parentBeaconBlockRoot *primitives.Root,
+	parentBeaconBlockRoot *common.Root,
 ) (*common.ExecutionHash, error) {
 	var (
 		startTime    = time.Now()
@@ -99,7 +98,7 @@ func (s *EngineClient[ExecutionPayloadT]) ForkchoiceUpdated(
 	if attrs != nil && !attrs.IsNil() &&
 		attrs.GetSuggestedFeeRecipient() == (common.ZeroAddress) {
 		s.logger.Warn(
-			"suggested fee recipient is not configured 🔆",
+			"Suggested fee recipient is not configured 🔆",
 			"fee-recipent", common.DisplayBytes(
 				common.ZeroAddress[:]).TerminalString(),
 		)
@@ -174,7 +173,7 @@ func (s *EngineClient[ExecutionPayloadT]) ExchangeCapabilities(
 
 	// Capture and log the capabilities that the execution client has.
 	for _, capability := range result {
-		s.logger.Info("exchanged capability", "capability", capability)
+		s.logger.Info("Exchanged capability", "capability", capability)
 		s.capabilities[capability] = struct{}{}
 	}
 
@@ -182,7 +181,7 @@ func (s *EngineClient[ExecutionPayloadT]) ExchangeCapabilities(
 	for _, capability := range ethclient.BeaconKitSupportedCapabilities() {
 		if _, exists := s.capabilities[capability]; !exists {
 			s.logger.Warn(
-				"your execution client may require an update 🚸",
+				"Your execution client may require an update 🚸",
 				"unsupported_capability", capability,
 			)
 		}

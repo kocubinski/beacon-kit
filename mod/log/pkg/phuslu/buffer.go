@@ -18,9 +18,27 @@
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 // TITLE.
 
-package components
+package phuslu
 
-// ProvideBlockFeed provides a block feed for the depinject framework.
-func ProvideBlockFeed() *BlockFeed {
-	return &BlockFeed{}
+import "sync"
+
+// byteBuffer is a byte buffer.
+type byteBuffer struct {
+	Bytes []byte
+}
+
+// byteBufferPool is a pool of byte buffers.
+//
+//nolint:gochecknoglobals // buffer pool
+var byteBufferPool = sync.Pool{
+	New: func() any {
+		return &byteBuffer{
+			Bytes: make([]byte, 0),
+		}
+	},
+}
+
+// Reset resets the byte buffer.
+func (b *byteBuffer) Reset() {
+	b.Bytes = b.Bytes[:0]
 }

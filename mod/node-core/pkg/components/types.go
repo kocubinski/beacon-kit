@@ -23,8 +23,11 @@ package components
 import (
 	"github.com/berachain/beacon-kit/mod/async/pkg/event"
 	asynctypes "github.com/berachain/beacon-kit/mod/async/pkg/types"
+	"github.com/berachain/beacon-kit/mod/beacon"
 	"github.com/berachain/beacon-kit/mod/beacon/blockchain"
 	"github.com/berachain/beacon-kit/mod/beacon/validator"
+	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/genesis"
+	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/state"
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
 	dablob "github.com/berachain/beacon-kit/mod/da/pkg/blob"
 	dastore "github.com/berachain/beacon-kit/mod/da/pkg/store"
@@ -34,7 +37,9 @@ import (
 	"github.com/berachain/beacon-kit/mod/execution/pkg/deposit"
 	execution "github.com/berachain/beacon-kit/mod/execution/pkg/engine"
 	"github.com/berachain/beacon-kit/mod/node-core/pkg/components/signer"
+	"github.com/berachain/beacon-kit/mod/payload/pkg/attributes"
 	payloadbuilder "github.com/berachain/beacon-kit/mod/payload/pkg/builder"
+	"github.com/berachain/beacon-kit/mod/primitives/pkg/math"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/service"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/transition"
 	"github.com/berachain/beacon-kit/mod/runtime/pkg/middleware"
@@ -49,10 +54,15 @@ type (
 	ABCIMiddleware = middleware.ABCIMiddleware[
 		*AvailabilityStore,
 		*BeaconBlock,
-		*BeaconBlockBody,
 		BeaconState,
 		*BlobSidecars,
+		*Deposit,
+		*ExecutionPayload,
+		*Genesis,
 	]
+
+	// AttributesFactory is a type alias for the attributes factory.
+	AttributesFactory = attributes.Factory[BeaconState, *Withdrawal]
 
 	// AvailabilityStore is a type alias for the availability store.
 	AvailabilityStore = dastore.Store[*BeaconBlockBody]
@@ -69,6 +79,12 @@ type (
 		*types.Validator, *Withdrawal,
 	]
 
+	// BeaconStateMarshallable is a type alias for the BeaconStateMarshallable.
+	BeaconStateMarshallable = state.BeaconStateMarshallable[
+		*BeaconBlockHeader, *types.Eth1Data, *ExecutionPayloadHeader,
+		*types.Fork, *types.Validator,
+	]
+
 	// BlobSidecars is a type alias for the blob sidecars.
 	BlobSidecars = datypes.BlobSidecars
 
@@ -77,6 +93,9 @@ type (
 		*AvailabilityStore,
 		*BeaconBlockBody,
 	]
+
+	// BlobFeed is a type alias for the blob feed.
+	BlobFeed = event.FeedOf[asynctypes.EventID, *asynctypes.Event[*BlobSidecars]]
 
 	// BlockEvent is a type alias for the block event.
 	BlockEvent = asynctypes.Event[*BeaconBlock]
@@ -89,10 +108,13 @@ type (
 		*AvailabilityStore,
 		*BeaconBlock,
 		*BeaconBlockBody,
+		*BeaconBlockHeader,
 		BeaconState,
 		*BlobSidecars,
 		*Deposit,
-		*DepositStore,
+		*ExecutionPayload,
+		*ExecutionPayloadHeader,
+		*Genesis,
 	]
 
 	// DBManager is a type alias for the database manager.
@@ -123,16 +145,21 @@ type (
 	EngineClient = engineclient.EngineClient[*ExecutionPayload]
 
 	// EngineClient is a type alias for the engine client.
-	ExecutionEngine = execution.Engine[*ExecutionPayload]
+	ExecutionEngine = execution.Engine[
+		*ExecutionPayload, engineprimitives.PayloadID,
+	]
 
 	// ExecutionPayload type aliases.
 	ExecutionPayload       = types.ExecutionPayload
 	ExecutionPayloadHeader = types.ExecutionPayloadHeader
 
+	// Genesis is a type alias for the genesis.
+	Genesis = genesis.Genesis[*Deposit, *ExecutionPayloadHeader]
+
 	// KVStore is a type alias for the KV store.
 	KVStore = beacondb.KVStore[
-		*types.Fork, *BeaconBlockHeader, *ExecutionPayloadHeader,
-		*types.Eth1Data, *types.Validator,
+		*BeaconBlockHeader, *types.Eth1Data, *ExecutionPayloadHeader,
+		*types.Fork, *types.Validator,
 	]
 
 	// LegacyKey type alias to LegacyKey used for LegacySinger construction.
@@ -140,7 +167,8 @@ type (
 
 	// LocalBuilder is a type alias for the local builder.
 	LocalBuilder = payloadbuilder.PayloadBuilder[
-		BeaconState, *ExecutionPayload, *ExecutionPayloadHeader,
+		BeaconState, *ExecutionPayload,
+		*ExecutionPayloadHeader, engineprimitives.PayloadID,
 	]
 
 	// StateProcessor is the type alias for the state processor inteface.
@@ -150,7 +178,11 @@ type (
 		*BlobSidecars,
 		*transition.Context,
 		*Deposit,
+		*ExecutionPayloadHeader,
 	]
+
+	// SlotFeed is a type alias for the slot feed.
+	SlotFeed = event.FeedOf[asynctypes.EventID, *asynctypes.Event[math.Slot]]
 
 	// StatusFeed is a type alias for the status feed.
 	StatusFeed = event.FeedOf[
@@ -158,7 +190,7 @@ type (
 	]
 
 	// StorageBackend is the type alias for the storage backend interface.
-	StorageBackend = blockchain.StorageBackend[
+	StorageBackend = beacon.StorageBackend[
 		*AvailabilityStore,
 		*BeaconBlockBody,
 		BeaconState,
@@ -173,7 +205,11 @@ type (
 		*BeaconBlockBody,
 		BeaconState,
 		*BlobSidecars,
+		*Deposit,
 		*DepositStore,
+		*types.Eth1Data,
+		*ExecutionPayload,
+		*ExecutionPayloadHeader,
 		*types.ForkData,
 	]
 

@@ -22,7 +22,7 @@ package core
 
 import (
 	"github.com/berachain/beacon-kit/mod/errors"
-	"github.com/berachain/beacon-kit/mod/primitives"
+	"github.com/berachain/beacon-kit/mod/primitives/pkg/common"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/math"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/version"
 	"github.com/davecgh/go-spew/spew"
@@ -158,16 +158,10 @@ func (sp *StateProcessor[
 	dep DepositT,
 ) error {
 	var (
-		genesisValidatorsRoot primitives.Root
+		genesisValidatorsRoot common.Root
 		epoch                 math.Epoch
 		err                   error
 	)
-
-	// Get the genesis validators root to be used to find fork data later.
-	genesisValidatorsRoot, err = st.GetGenesisValidatorsRoot()
-	if err != nil {
-		return err
-	}
 
 	// Get the current epoch.
 	// Get the current slot.
@@ -175,13 +169,25 @@ func (sp *StateProcessor[
 	if err != nil {
 		return err
 	}
+
+	// At genesis, the validators sign over an empty root.
+	if slot == 0 {
+		genesisValidatorsRoot = common.Root{}
+	} else {
+		// Get the genesis validators root to be used to find fork data later.
+		genesisValidatorsRoot, err = st.GetGenesisValidatorsRoot()
+		if err != nil {
+			return err
+		}
+	}
+
 	epoch = sp.cs.SlotToEpoch(slot)
 
 	// Verify that the message was signed correctly.
 	var d ForkDataT
 	if err = dep.VerifySignature(
 		d.New(
-			version.FromUint32[primitives.Version](
+			version.FromUint32[common.Version](
 				sp.cs.ActiveForkVersionForEpoch(epoch),
 			), genesisValidatorsRoot,
 		),

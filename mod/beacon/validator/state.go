@@ -24,15 +24,16 @@ import (
 	"context"
 	"time"
 
-	"github.com/berachain/beacon-kit/mod/primitives"
+	"github.com/berachain/beacon-kit/mod/primitives/pkg/common"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/transition"
 )
 
 // computeAndSetStateRoot computes the state root of an outgoing block
 // and sets it in the block.
 func (s *Service[
-	BeaconBlockT, BeaconBlockBodyT, BeaconStateT,
-	BlobSidecarsT, DepositStoreT, ForkDataT,
+	BeaconBlockT, BeaconBlockBodyT, BeaconStateT, BlobSidecarsT,
+	DepositT, DepositStoreT, Eth1DataT, ExecutionPayloadT,
+	ExecutionPayloadHeaderT, ForkDataT,
 ]) computeAndSetStateRoot(
 	ctx context.Context,
 	st BeaconStateT,
@@ -40,11 +41,11 @@ func (s *Service[
 ) error {
 	slot := blk.GetSlot()
 	s.logger.Info(
-		"computing state root for block 🌲",
+		"Computing state root for block 🌲",
 		"slot", slot.Base10(),
 	)
 
-	var stateRoot primitives.Root
+	var stateRoot common.Root
 	stateRoot, err := s.computeStateRoot(ctx, st, blk)
 	if err != nil {
 		s.logger.Error(
@@ -55,7 +56,7 @@ func (s *Service[
 		return err
 	}
 
-	s.logger.Info("state root computed for block 💻 ",
+	s.logger.Info("State root computed for block 💻 ",
 		"slot", slot.Base10(),
 		"state_root", stateRoot,
 	)
@@ -65,13 +66,14 @@ func (s *Service[
 
 // computeStateRoot computes the state root of an outgoing block.
 func (s *Service[
-	BeaconBlockT, BeaconBlockBodyT, BeaconStateT,
-	BlobSidecarsT, DepositStoreT, ForkDataT,
+	BeaconBlockT, BeaconBlockBodyT, BeaconStateT, BlobSidecarsT,
+	DepositT, DepositStoreT, Eth1DataT, ExecutionPayloadT,
+	ExecutionPayloadHeaderT, ForkDataT,
 ]) computeStateRoot(
 	ctx context.Context,
 	st BeaconStateT,
 	blk BeaconBlockT,
-) (primitives.Root, error) {
+) (common.Root, error) {
 	startTime := time.Now()
 	defer s.metrics.measureStateRootComputationTime(startTime)
 	if _, err := s.stateProcessor.Transition(
@@ -87,7 +89,7 @@ func (s *Service[
 		},
 		st, blk,
 	); err != nil {
-		return primitives.Root{}, err
+		return common.Root{}, err
 	}
 
 	return st.HashTreeRoot()

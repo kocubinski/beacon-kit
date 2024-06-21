@@ -36,14 +36,14 @@ import (
 // KVStore is a wrapper around an sdk.Context
 // that provides access to all beacon related data.
 type KVStore[
-	ForkT ssz.Marshallable,
 	BeaconBlockHeaderT ssz.Marshallable,
+	Eth1DataT ssz.Marshallable,
 	ExecutionPayloadHeaderT interface {
 		ssz.Marshallable
 		NewFromSSZ([]byte, uint32) (ExecutionPayloadHeaderT, error)
 		Version() uint32
 	},
-	Eth1DataT ssz.Marshallable,
+	ForkT ssz.Marshallable,
 	ValidatorT Validator,
 ] struct {
 	ctx   context.Context
@@ -104,20 +104,20 @@ type KVStore[
 //
 //nolint:funlen // its not overly complex.
 func New[
-	ForkT ssz.Marshallable,
 	BeaconBlockHeaderT ssz.Marshallable,
+	Eth1DataT ssz.Marshallable,
 	ExecutionPayloadHeaderT interface {
 		ssz.Marshallable
 		NewFromSSZ([]byte, uint32) (ExecutionPayloadHeaderT, error)
 		Version() uint32
 	},
-	Eth1DataT ssz.Marshallable,
+	ForkT ssz.Marshallable,
 	ValidatorT Validator,
 ](
 	kss store.KVStoreService,
 	payloadCodec *encoding.SSZInterfaceCodec[ExecutionPayloadHeaderT],
 ) *KVStore[
-	ForkT, BeaconBlockHeaderT, ExecutionPayloadHeaderT, Eth1DataT, ValidatorT,
+	BeaconBlockHeaderT, Eth1DataT, ExecutionPayloadHeaderT, ForkT, ValidatorT,
 ] {
 	schemaBuilder := sdkcollections.NewSchemaBuilder(kss)
 	// TODO pull up and inject.
@@ -126,8 +126,8 @@ func New[
 		panic(err)
 	}
 	return &KVStore[
-		ForkT, BeaconBlockHeaderT,
-		ExecutionPayloadHeaderT, Eth1DataT, ValidatorT,
+		BeaconBlockHeaderT, Eth1DataT, ExecutionPayloadHeaderT,
+		ForkT, ValidatorT,
 	]{
 		ctx:   nil,
 		sszdb: sdb,
@@ -260,9 +260,11 @@ func New[
 
 // Copy returns a copy of the Store.
 func (kv *KVStore[
-	ForkT, BeaconBlockHeaderT, ExecutionPayloadT, Eth1DataT, ValidatorT,
+	BeaconBlockHeaderT, Eth1DataT, ExecutionPayloadHeaderT,
+	ForkT, ValidatorT,
 ]) Copy() *KVStore[
-	ForkT, BeaconBlockHeaderT, ExecutionPayloadT, Eth1DataT, ValidatorT,
+	BeaconBlockHeaderT, Eth1DataT, ExecutionPayloadHeaderT,
+	ForkT, ValidatorT,
 ] {
 	// TODO: Decouple the KVStore type from the Cosmos-SDK.
 	cctx, write := sdk.UnwrapSDKContext(kv.ctx).CacheContext()
@@ -273,18 +275,21 @@ func (kv *KVStore[
 
 // Context returns the context of the Store.
 func (kv *KVStore[
-	ForkT, BeaconBlockHeaderT, ExecutionPayloadT, Eth1DataT, ValidatorT,
+	BeaconBlockHeaderT, Eth1DataT, ExecutionPayloadHeaderT,
+	ForkT, ValidatorT,
 ]) Context() context.Context {
 	return kv.ctx
 }
 
 // WithContext returns a copy of the Store with the given context.
 func (kv *KVStore[
-	ForkT, BeaconBlockHeaderT, ExecutionPayloadT, Eth1DataT, ValidatorT,
+	BeaconBlockHeaderT, Eth1DataT, ExecutionPayloadHeaderT,
+	ForkT, ValidatorT,
 ]) WithContext(
 	ctx context.Context,
 ) *KVStore[
-	ForkT, BeaconBlockHeaderT, ExecutionPayloadT, Eth1DataT, ValidatorT,
+	BeaconBlockHeaderT, Eth1DataT, ExecutionPayloadHeaderT,
+	ForkT, ValidatorT,
 ] {
 	cpy := *kv
 	cpy.ctx = ctx
@@ -293,7 +298,8 @@ func (kv *KVStore[
 
 // Save saves the Store.
 func (kv *KVStore[
-	ForkT, BeaconBlockHeaderT, ExecutionPayloadT, Eth1DataT, ValidatorT,
+	BeaconBlockHeaderT, Eth1DataT, ExecutionPayloadHeaderT,
+	ForkT, ValidatorT,
 ]) Save() {
 	if kv.write != nil {
 		kv.write()
