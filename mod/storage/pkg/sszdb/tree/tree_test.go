@@ -34,4 +34,9 @@ func TestBeaconState_Storage(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tree)
 	require.True(t, bytes.Equal(rootHash[:], tree.CachedHash()))
+
+	f, err := os.Create("/tmp/beacon.dot")
+	require.NoError(t, err)
+	defer f.Close()
+	tree.DrawTree(f)
 }

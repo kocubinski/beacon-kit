@@ -2,9 +2,13 @@ package tree
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
 	"reflect"
 	"unsafe"
 
+	"github.com/emicklei/dot"
 	ssz "github.com/ferranbt/fastssz"
 )
 
@@ -59,4 +63,27 @@ func (n *Node) CachedHash() []byte {
 	h := sha256.Sum256(append(n.Left.CachedHash(), n.Right.CachedHash()...))
 	n.Value = h[:]
 	return n.Value
+}
+
+func (n *Node) DrawTree(w io.Writer) {
+	n.CachedHash()
+	g := dot.NewGraph(dot.Directed)
+	drawNode(n, 1, g)
+	g.Write(w)
+}
+
+func drawNode(n *Node, levelOrder int, g *dot.Graph) dot.Node {
+	h := hex.EncodeToString(n.Value)
+	dn := g.Node(fmt.Sprintf("n%d", levelOrder)).
+		Label(fmt.Sprintf("%d\n%s..%s", levelOrder, h[:3], h[len(h)-3:]))
+
+	if n.Left != nil {
+		ln := drawNode(n.Left, 2*levelOrder, g)
+		g.Edge(dn, ln).Label("0")
+	}
+	if n.Right != nil {
+		rn := drawNode(n.Right, 2*levelOrder+1, g)
+		g.Edge(dn, rn).Label("1")
+	}
+	return dn
 }

@@ -2,7 +2,6 @@ package sszdb
 
 import (
 	"encoding/binary"
-	"reflect"
 
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/state/deneb"
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
@@ -105,18 +104,6 @@ func (d *DB) save(node *ssz.Node, gindex uint64) error {
 		return errors.New("node has only one child")
 	}
 	return nil
-}
-
-func reflectLeftNode(node *ssz.Node) *ssz.Node {
-	v := reflect.ValueOf(node)
-	l := v.FieldByIndex([]int{0})
-	return l.Interface().(*ssz.Node)
-}
-
-func refelctRightNode(node *ssz.Node) *ssz.Node {
-	v := reflect.ValueOf(node)
-	l := v.FieldByIndex([]int{1})
-	return l.Interface().(*ssz.Node)
 }
 
 func getLeftNode(node *ssz.Node) *ssz.Node {
