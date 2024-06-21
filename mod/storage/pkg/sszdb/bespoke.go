@@ -1,6 +1,7 @@
 package sszdb
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
@@ -40,13 +41,10 @@ func (d *DB) GetSlot() (pmath.Slot, error) {
 
 func (d *DB) GetFork() (*types.Fork, error) {
 	const parentNumFields = 3
-	const fieldIndex = 0
 	const rootGindex = 18 // field index 2 in parent, 16 + 2 = 18
 
-	relativeHeight := ceilLog2(nextPowerOfTwo(parentNumFields) * 2)               // 3
-	totalHeight := ceilLog2(nextPowerOfTwo(parentNumFields*2)*2) + relativeHeight // 7
-	leafOffset := powerTwo(totalHeight - relativeHeight - 1)
-	gindex := powerTwo(totalHeight-1) + leafOffset // 64 + 8 = 72
+	depth := ceilLog2(parentNumFields)
+	gindex := powerTwo(depth) * rootGindex
 
 	f := &types.Fork{}
 	bz, err := d.getNodeBytes(gindex, 4)
@@ -67,6 +65,20 @@ func (d *DB) GetFork() (*types.Fork, error) {
 	}
 	f.Epoch = pmath.Epoch(ssz.UnmarshallUint64(bz))
 	return f, nil
+}
+
+func (d *DB) GetLatestBlockHeader() (*types.BeaconBlockHeader, error) {
+	const parentNumFields = 5
+	const rootGindex = 19
+
+	relativeHeight := ceilLog2(nextPowerOfTwo(parentNumFields) * 2)               // 4
+	totalHeight := ceilLog2(nextPowerOfTwo(parentNumFields*2)*2) + relativeHeight // 8
+	leafOffset := powerTwo(totalHeight - relativeHeight - 1)
+	gindex := powerTwo(totalHeight-1) + leafOffset // 64 + 8 = 72
+
+	fmt.Println("gindex", gindex)
+
+	return nil, nil
 }
 
 // registry

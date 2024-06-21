@@ -62,6 +62,16 @@ func TestDB_Bespoke(t *testing.T) {
 		CurrentVersion:  [4]byte{5, 6, 7, 8},
 		Epoch:           123,
 	}
+	beacon.LatestBlockHeader = &types.BeaconBlockHeader{
+		BeaconBlockHeaderBase: types.BeaconBlockHeaderBase{
+			Slot:            777,
+			ProposerIndex:   123,
+			ParentBlockRoot: [32]byte{1, 2, 3, 4},
+			StateRoot:       [32]byte{5, 6, 7, 8},
+		},
+		BodyRoot: [32]byte{9, 10, 11, 12},
+	}
+
 	err = db.SaveMonolith(beacon)
 	require.NoError(t, err)
 
@@ -76,4 +86,8 @@ func TestDB_Bespoke(t *testing.T) {
 	fork, err := db.GetFork()
 	require.NoError(t, err)
 	require.Equal(t, beacon.Fork, fork)
+
+	// latestHeader, err := db.GetLatestBlockHeader()
+	// require.NoError(t, err)
+	// require.Equal(t, beacon.LatestBlockHeader, latestHeader)
 }
