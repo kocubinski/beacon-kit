@@ -29,6 +29,7 @@ import (
 	"github.com/berachain/beacon-kit/mod/storage/pkg/beacondb/encoding"
 	"github.com/berachain/beacon-kit/mod/storage/pkg/beacondb/index"
 	"github.com/berachain/beacon-kit/mod/storage/pkg/beacondb/keys"
+	"github.com/berachain/beacon-kit/mod/storage/pkg/sszdb"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
@@ -96,6 +97,7 @@ type KVStore[
 	slashings sdkcollections.Map[uint64, uint64]
 	// totalSlashing stores the total slashing in the vector range.
 	totalSlashing sdkcollections.Item[uint64]
+	sszdb         *sszdb.DB
 }
 
 // New creates a new instance of Store.
@@ -118,11 +120,17 @@ func New[
 	ForkT, BeaconBlockHeaderT, ExecutionPayloadHeaderT, Eth1DataT, ValidatorT,
 ] {
 	schemaBuilder := sdkcollections.NewSchemaBuilder(kss)
+	// TODO pull up and inject.
+	sdb, err := sszdb.New()
+	if err != nil {
+		panic(err)
+	}
 	return &KVStore[
 		ForkT, BeaconBlockHeaderT,
 		ExecutionPayloadHeaderT, Eth1DataT, ValidatorT,
 	]{
-		ctx: nil,
+		ctx:   nil,
+		sszdb: sdb,
 		genesisValidatorsRoot: sdkcollections.NewItem(
 			schemaBuilder,
 			sdkcollections.NewPrefix([]byte{keys.GenesisValidatorsRootPrefix}),
@@ -247,6 +255,7 @@ func New[
 			encoding.SSZValueCodec[BeaconBlockHeaderT]{},
 		),
 	}
+
 }
 
 // Copy returns a copy of the Store.
