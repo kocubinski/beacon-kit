@@ -79,23 +79,25 @@ func TestDB_Bespoke(t *testing.T) {
 	err = db.SaveMonolith(beacon)
 	require.NoError(t, err)
 
-	bz, err := db.GetGenesisValidatorsRoot()
+	rdr := sszdb.BespokeDBReader{db}
+
+	bz, err := rdr.GetGenesisValidatorsRoot()
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(bz[:], beacon.GenesisValidatorsRoot[:]))
 
-	slot, err := db.GetSlot()
+	slot, err := rdr.GetSlot()
 	require.NoError(t, err)
 	require.Equal(t, beacon.Slot, slot)
 
-	fork, err := db.GetFork()
+	fork, err := rdr.GetFork()
 	require.NoError(t, err)
 	require.Equal(t, beacon.Fork, fork)
 
-	latestHeader, err := db.GetLatestBlockHeader()
+	latestHeader, err := rdr.GetLatestBlockHeader()
 	require.NoError(t, err)
 	require.Equal(t, beacon.LatestBlockHeader, latestHeader)
 
-	roots, err := db.GetBlockRoots()
+	roots, err := rdr.GetBlockRoots()
 	require.NoError(t, err)
 	for i, r := range roots {
 		require.Equal(t, beacon.BlockRoots[i], r)

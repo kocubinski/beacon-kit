@@ -9,9 +9,11 @@ import (
 	ssz "github.com/ferranbt/fastssz"
 )
 
-// versioning
+type BespokeDBReader struct {
+	*DB
+}
 
-func (d *DB) GetGenesisValidatorsRoot() (common.Root, error) {
+func (d *BespokeDBReader) GetGenesisValidatorsRoot() (common.Root, error) {
 	const parentNumFields = 16
 	const fieldIndex = 0
 	const length = 32
@@ -24,7 +26,7 @@ func (d *DB) GetGenesisValidatorsRoot() (common.Root, error) {
 	return common.Root(bz), nil
 }
 
-func (d *DB) GetSlot() (pmath.Slot, error) {
+func (d *BespokeDBReader) GetSlot() (pmath.Slot, error) {
 	const parentNumFields = 16
 	const fieldIndex = 1
 	const length = 8
@@ -38,7 +40,7 @@ func (d *DB) GetSlot() (pmath.Slot, error) {
 	return pmath.Slot(slot), nil
 }
 
-func (d *DB) GetFork() (*types.Fork, error) {
+func (d *BespokeDBReader) GetFork() (*types.Fork, error) {
 	const parentNumFields = 3
 	const rootGindex = 18 // field index 2 in parent, 16 + 2 = 18
 
@@ -72,7 +74,7 @@ func (d *DB) GetFork() (*types.Fork, error) {
 	return f, nil
 }
 
-func (d *DB) GetLatestBlockHeader() (*types.BeaconBlockHeader, error) {
+func (d *BespokeDBReader) GetLatestBlockHeader() (*types.BeaconBlockHeader, error) {
 	const parentNumFields = 5
 	const rootGindex = 19
 
@@ -122,7 +124,7 @@ func (d *DB) GetLatestBlockHeader() (*types.BeaconBlockHeader, error) {
 	return h, nil
 }
 
-func (d *DB) GetBlockRoots() ([]common.Root, error) {
+func (d *BespokeDBReader) GetBlockRoots() ([]common.Root, error) {
 	const parentNumFields = 8192
 	const rootGindex = 20
 
@@ -145,25 +147,6 @@ func (d *DB) GetBlockRoots() ([]common.Root, error) {
 	}
 	return nil, nil
 }
-
-// registry
-
-func (d *DB) AddValidator(v *types.Validator) {
-	d.monolith.Validators = append(d.monolith.Validators, v)
-}
-
-func (d *DB) UpdateValidatorAtIndex(index int, v *types.Validator) {
-	d.monolith.Validators[index] = v
-}
-
-func (d *DB) RemoveValidatorAtIndex(index int) {
-}
-
-func (d *DB) GetValidators() []*types.Validator {
-	return d.monolith.Validators
-}
-
-// util
 
 func floorLog2(n uint64) uint64 {
 	return uint64(math.Floor(math.Log2(float64(n))))
