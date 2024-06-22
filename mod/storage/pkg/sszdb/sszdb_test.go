@@ -7,6 +7,7 @@ import (
 
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/state/deneb"
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
+	"github.com/berachain/beacon-kit/mod/primitives/pkg/common"
 	"github.com/berachain/beacon-kit/mod/storage/pkg/sszdb"
 	"github.com/stretchr/testify/require"
 )
@@ -71,6 +72,9 @@ func TestDB_Bespoke(t *testing.T) {
 		},
 		BodyRoot: [32]byte{9, 10, 11, 12},
 	}
+	beacon.BlockRoots = []common.Root{
+		{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}, {13, 14, 15, 16},
+	}
 
 	err = db.SaveMonolith(beacon)
 	require.NoError(t, err)
@@ -90,4 +94,10 @@ func TestDB_Bespoke(t *testing.T) {
 	latestHeader, err := db.GetLatestBlockHeader()
 	require.NoError(t, err)
 	require.Equal(t, beacon.LatestBlockHeader, latestHeader)
+
+	roots, err := db.GetBlockRoots()
+	require.NoError(t, err)
+	for i, r := range roots {
+		require.Equal(t, beacon.BlockRoots[i], r)
+	}
 }

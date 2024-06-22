@@ -122,6 +122,30 @@ func (d *DB) GetLatestBlockHeader() (*types.BeaconBlockHeader, error) {
 	return h, nil
 }
 
+func (d *DB) GetBlockRoots() ([]common.Root, error) {
+	const parentNumFields = 8192
+	const rootGindex = 20
+
+	depth := ceilLog2(parentNumFields) + 1 // +1 because of the length field
+	gindex := powerTwo(depth) * rootGindex
+
+	bz, err := d.getNodeBytes(2*rootGindex+1, 8)
+	if err != nil {
+		return nil, err
+	}
+	length := ssz.UnmarshallUint64(bz)
+
+	var roots []common.Root
+	for i := uint64(0); i < length; i++ {
+		bz, err = d.getNodeBytes(gindex+i, 32)
+		if err != nil {
+			return nil, err
+		}
+		roots = append(roots, common.Root(bz))
+	}
+	return nil, nil
+}
+
 // registry
 
 func (d *DB) AddValidator(v *types.Validator) {
