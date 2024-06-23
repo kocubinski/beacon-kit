@@ -153,7 +153,14 @@ func TestDB_Bespoke(t *testing.T) {
 		require.Equal(t, beacon.BlockRoots[i], r)
 	}
 
-	// val0, err := metadataRdr.GetValidatorAtIndex(0)
-	// require.NoError(t, err)
-	// require.Equal(t, beacon.Validators[0], val0)
+	val0, err := metadataRdr.GetValidatorAtIndex(0)
+	require.NoError(t, err)
+	require.Equal(t, beacon.Validators[0], val0)
+
+	vals, err := metadataRdr.GetValidators()
+	require.NoError(t, err)
+	require.Equal(t, len(beacon.Validators), len(vals))
+	for i, v := range vals {
+		require.Equal(t, beacon.Validators[i], v)
+	}
 }

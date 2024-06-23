@@ -1,6 +1,7 @@
 package sszdb
 
 import (
+	"math"
 	"strconv"
 
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
@@ -15,14 +16,18 @@ type schemaNode struct {
 	height   uint64
 	length   uint64
 	list     bool
-	vector   bool
 	children lookupTable
+}
+
+func (s *schemaNode) isByteVector() bool {
+	return s.length > 32 && s.height == 0
 }
 
 type lookupTable map[string]*schemaNode
 type objectPath []string
 
 func getSchemaNode(path objectPath) *schemaNode {
+	// todo: pass in root for partial traversal from subtree
 	prev := beaconStateLookup["."]
 	var (
 		node *schemaNode
@@ -38,19 +43,18 @@ func getSchemaNode(path objectPath) *schemaNode {
 				}
 				break
 			}
+			// TODO this incorrectly asssumes all list elements are 32 bytes, that is, either container types
+			// or basic types 32 bytes in length.
 			i, err := strconv.ParseUint(p, 10, 64)
 			if err == nil {
 				node = &schemaNode{
 					gindex:   powerTwo(prev.height-1)*prev.gindex + i,
 					length:   prev.length,   // list specifies the element length
 					children: prev.children, // children specifies the element schema
+					height:   ceilLog2(uint64(len(prev.children))) + 1,
 				}
 				break
 			}
-			fallthrough
-
-		case prev.vector:
-			// todo
 
 		default:
 			node, ok = prev.children[p]
@@ -58,6 +62,11 @@ func getSchemaNode(path objectPath) *schemaNode {
 				return nil
 			}
 			node.gindex = powerTwo(prev.height-1)*prev.gindex + node.order
+			if node.isByteVector() {
+				numLeaves := math.Ceil(float64(node.length) / 32)
+				depth := ceilLog2(uint64(numLeaves))
+				node.gindex = powerTwo(depth) * node.gindex
+			}
 		}
 		prev = node
 	}

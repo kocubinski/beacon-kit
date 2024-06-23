@@ -3,6 +3,7 @@ package sszdb
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 
@@ -174,7 +175,7 @@ func (d *DB) mustGetNode(gindex uint64) (*tree.Node, error) {
 		return nil, err
 	}
 	if bz == nil {
-		return nil, errors.New("node not found")
+		return nil, fmt.Errorf("node not found at gindex %d", gindex)
 	}
 	return tree.DecodeNode(bz)
 }

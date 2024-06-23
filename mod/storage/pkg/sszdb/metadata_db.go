@@ -1,14 +1,12 @@
 package sszdb
 
 import (
-	"bytes"
 	"fmt"
-	"slices"
 	"strconv"
 
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/common"
-	pmath "github.com/berachain/beacon-kit/mod/primitives/pkg/math"
+	"github.com/berachain/beacon-kit/mod/primitives/pkg/math"
 	ssz "github.com/ferranbt/fastssz"
 )
 
@@ -21,6 +19,7 @@ func (d *MetadataDB) getLeafBytes(path objectPath) ([]byte, error) {
 	if schemaNode == nil {
 		return nil, fmt.Errorf("path %v not found", path)
 	}
+
 	return d.getNodeBytes(schemaNode.gindex, schemaNode.length)
 }
 
@@ -33,14 +32,14 @@ func (d *MetadataDB) GetGenesisValidatorsRoot() (common.Root, error) {
 	return common.Root(bz), nil
 }
 
-func (d *MetadataDB) GetSlot() (pmath.Slot, error) {
+func (d *MetadataDB) GetSlot() (math.Slot, error) {
 	path := objectPath{"slot"}
 	n, err := d.getLeafBytes(path)
 	if err != nil {
 		return 0, err
 	}
 	slot := ssz.UnmarshallUint64(n)
-	return pmath.Slot(slot), nil
+	return math.Slot(slot), nil
 }
 
 func (d *MetadataDB) GetFork() (*types.Fork, error) {
@@ -61,7 +60,7 @@ func (d *MetadataDB) GetFork() (*types.Fork, error) {
 	if err != nil {
 		return nil, err
 	}
-	f.Epoch = pmath.Epoch(ssz.UnmarshallUint64(bz))
+	f.Epoch = math.Epoch(ssz.UnmarshallUint64(bz))
 
 	return f, nil
 }
@@ -125,33 +124,76 @@ func (d *MetadataDB) GetBlockRoots() ([]common.Root, error) {
 
 func (d *MetadataDB) GetValidatorAtIndex(index uint64) (*types.Validator, error) {
 	path := objectPath{"validators", strconv.FormatUint(index, 10)}
-	valSchema := getSchemaNode(path)
+	val := &types.Validator{}
 
-	// this math is misplaced here but it proves the point
-	gindex := powerTwo(uint64(len(valSchema.children))) * valSchema.gindex
-
-	// TODO memoize or pregen this
-	var orderedFields []*schemaNode
-	for _, n := range valSchema.children {
-		orderedFields = append(orderedFields, n)
-	}
-	slices.SortFunc(orderedFields, func(i, j *schemaNode) int {
-		return int(i.order - j.order)
-	})
-
-	var valBz bytes.Buffer
-	for i, field := range orderedFields {
-		fieldBz, err := d.getNodeBytes(gindex+uint64(i), field.length)
-		if err != nil {
-			return nil, err
-		}
-		valBz.Write(fieldBz[:field.length])
-	}
-
-	v := &types.Validator{}
-	err := v.UnmarshalSSZ(valBz.Bytes())
+	bz, err := d.getLeafBytes(append(path, "pubkey"))
 	if err != nil {
 		return nil, err
 	}
-	return v, nil
+	copy(val.Pubkey[:], bz)
+
+	bz, err = d.getLeafBytes(append(path, "withdrawal_credentials"))
+	if err != nil {
+		return nil, err
+	}
+	copy(val.WithdrawalCredentials[:], bz)
+
+	bz, err = d.getLeafBytes(append(path, "effective_balance"))
+	if err != nil {
+		return nil, err
+	}
+	val.EffectiveBalance = math.U64(ssz.UnmarshallUint64(bz))
+
+	bz, err = d.getLeafBytes(append(path, "slashed"))
+	if err != nil {
+		return nil, err
+	}
+	val.Slashed = ssz.UnmarshalBool(bz)
+
+	bz, err = d.getLeafBytes(append(path, "activation_eligibility_epoch"))
+	if err != nil {
+		return nil, err
+	}
+	val.ActivationEligibilityEpoch = math.Epoch(ssz.UnmarshallUint64(bz))
+
+	bz, err = d.getLeafBytes(append(path, "activation_epoch"))
+	if err != nil {
+		return nil, err
+	}
+	val.ActivationEpoch = math.Epoch(ssz.UnmarshallUint64(bz))
+
+	bz, err = d.getLeafBytes(append(path, "exit_epoch"))
+	if err != nil {
+		return nil, err
+	}
+	val.ExitEpoch = math.Epoch(ssz.UnmarshallUint64(bz))
+
+	bz, err = d.getLeafBytes(append(path, "withdrawable_epoch"))
+	if err != nil {
+		return nil, err
+	}
+	val.WithdrawableEpoch = math.Epoch(ssz.UnmarshallUint64(bz))
+
+	return val, nil
+}
+
+func (d *MetadataDB) GetValidators() ([]*types.Validator, error) {
+	path := objectPath{"validators", "__len__"}
+	schemaNode := getSchemaNode(path)
+	bz, err := d.getNodeBytes(schemaNode.gindex, schemaNode.length)
+	if err != nil {
+		return nil, err
+	}
+
+	length := ssz.UnmarshallUint64(bz)
+	validators := make([]*types.Validator, length)
+	for i := uint64(0); i < length; i++ {
+		val, err := d.GetValidatorAtIndex(i)
+		if err != nil {
+			return nil, err
+		}
+		validators[i] = val
+	}
+
+	return validators, nil
 }
