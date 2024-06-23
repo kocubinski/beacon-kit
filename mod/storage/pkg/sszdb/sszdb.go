@@ -179,7 +179,7 @@ func (d *DB) mustGetNode(gindex uint64) (*tree.Node, error) {
 	return tree.DecodeNode(bz)
 }
 
-func (d *DB) getNodeBytes(gindex uint64, lenBz uint) ([]byte, error) {
+func (d *DB) getNodeBytes(gindex uint64, lenBz uint64) ([]byte, error) {
 	const chunksize = 32
 
 	numNodes := int(math.Ceil(float64(lenBz) / chunksize))

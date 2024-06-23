@@ -79,26 +79,54 @@ func TestDB_Bespoke(t *testing.T) {
 	err = db.SaveMonolith(beacon)
 	require.NoError(t, err)
 
-	rdr := sszdb.BespokeDBReader{db}
+	// test bespoke reader
+	bespokeRdr := sszdb.BespokeDBReader{db}
 
-	bz, err := rdr.GetGenesisValidatorsRoot()
+	bz, err := bespokeRdr.GetGenesisValidatorsRoot()
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(bz[:], beacon.GenesisValidatorsRoot[:]))
 
-	slot, err := rdr.GetSlot()
+	slot, err := bespokeRdr.GetSlot()
 	require.NoError(t, err)
 	require.Equal(t, beacon.Slot, slot)
 
-	fork, err := rdr.GetFork()
+	fork, err := bespokeRdr.GetFork()
 	require.NoError(t, err)
 	require.Equal(t, beacon.Fork, fork)
 
-	latestHeader, err := rdr.GetLatestBlockHeader()
+	latestHeader, err := bespokeRdr.GetLatestBlockHeader()
 	require.NoError(t, err)
 	require.Equal(t, beacon.LatestBlockHeader, latestHeader)
 
-	roots, err := rdr.GetBlockRoots()
+	roots, err := bespokeRdr.GetBlockRoots()
 	require.NoError(t, err)
+	require.Equal(t, len(beacon.BlockRoots), len(roots))
+	for i, r := range roots {
+		require.Equal(t, beacon.BlockRoots[i], r)
+	}
+
+	// test metadata reader
+	metadataRdr := sszdb.MetadataDB{db}
+
+	bz, err = metadataRdr.GetGenesisValidatorsRoot()
+	require.NoError(t, err)
+	require.True(t, bytes.Equal(bz[:], beacon.GenesisValidatorsRoot[:]))
+
+	slot, err = metadataRdr.GetSlot()
+	require.NoError(t, err)
+	require.Equal(t, beacon.Slot, slot)
+
+	fork, err = metadataRdr.GetFork()
+	require.NoError(t, err)
+	require.Equal(t, beacon.Fork, fork)
+
+	latestHeader, err = metadataRdr.GetLatestBlockHeader()
+	require.NoError(t, err)
+	require.Equal(t, beacon.LatestBlockHeader, latestHeader)
+
+	roots, err = metadataRdr.GetBlockRoots()
+	require.NoError(t, err)
+	require.Equal(t, len(beacon.BlockRoots), len(roots))
 	for i, r := range roots {
 		require.Equal(t, beacon.BlockRoots[i], r)
 	}

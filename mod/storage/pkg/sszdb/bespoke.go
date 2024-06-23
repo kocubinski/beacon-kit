@@ -145,7 +145,7 @@ func (d *BespokeDBReader) GetBlockRoots() ([]common.Root, error) {
 		}
 		roots = append(roots, common.Root(bz))
 	}
-	return nil, nil
+	return roots, nil
 }
 
 func floorLog2(n uint64) uint64 {
