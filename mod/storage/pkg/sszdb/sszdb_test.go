@@ -75,6 +75,28 @@ func TestDB_Bespoke(t *testing.T) {
 	beacon.BlockRoots = []common.Root{
 		{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}, {13, 14, 15, 16},
 	}
+	beacon.Validators = []*types.Validator{
+		{
+			Pubkey:                     [48]byte{1, 2, 3, 4},
+			WithdrawalCredentials:      [32]byte{5, 6, 7, 8},
+			EffectiveBalance:           123,
+			Slashed:                    true,
+			ActivationEligibilityEpoch: 123,
+			ActivationEpoch:            123,
+			ExitEpoch:                  123,
+			WithdrawableEpoch:          123,
+		},
+		{
+			Pubkey:                     [48]byte{9, 10, 11, 12},
+			WithdrawalCredentials:      [32]byte{13, 14, 15, 16},
+			EffectiveBalance:           456,
+			Slashed:                    false,
+			ActivationEligibilityEpoch: 456,
+			ActivationEpoch:            456,
+			ExitEpoch:                  456,
+			WithdrawableEpoch:          456,
+		},
+	}
 
 	err = db.SaveMonolith(beacon)
 	require.NoError(t, err)
@@ -130,4 +152,8 @@ func TestDB_Bespoke(t *testing.T) {
 	for i, r := range roots {
 		require.Equal(t, beacon.BlockRoots[i], r)
 	}
+
+	// val0, err := metadataRdr.GetValidatorAtIndex(0)
+	// require.NoError(t, err)
+	// require.Equal(t, beacon.Validators[0], val0)
 }

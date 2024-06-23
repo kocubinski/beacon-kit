@@ -1,7 +1,9 @@
 package sszdb
 
 import (
+	"bytes"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
@@ -119,4 +121,37 @@ func (d *MetadataDB) GetBlockRoots() ([]common.Root, error) {
 	}
 
 	return roots, nil
+}
+
+func (d *MetadataDB) GetValidatorAtIndex(index uint64) (*types.Validator, error) {
+	path := objectPath{"validators", strconv.FormatUint(index, 10)}
+	valSchema := getSchemaNode(path)
+
+	// this math is misplaced here but it proves the point
+	gindex := powerTwo(uint64(len(valSchema.children))) * valSchema.gindex
+
+	// TODO memoize or pregen this
+	var orderedFields []*schemaNode
+	for _, n := range valSchema.children {
+		orderedFields = append(orderedFields, n)
+	}
+	slices.SortFunc(orderedFields, func(i, j *schemaNode) int {
+		return int(i.order - j.order)
+	})
+
+	var valBz bytes.Buffer
+	for i, field := range orderedFields {
+		fieldBz, err := d.getNodeBytes(gindex+uint64(i), field.length)
+		if err != nil {
+			return nil, err
+		}
+		valBz.Write(fieldBz[:field.length])
+	}
+
+	v := &types.Validator{}
+	err := v.UnmarshalSSZ(valBz.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
 }
