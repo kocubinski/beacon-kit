@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 
-	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/state/deneb"
 	"github.com/berachain/beacon-kit/mod/errors"
 	"github.com/berachain/beacon-kit/mod/storage/pkg/sszdb/tree"
 	"github.com/cockroachdb/pebble"
@@ -18,10 +16,6 @@ const devDBPath = "./.tmp/sszdb.db"
 
 type DB struct {
 	db *pebble.DB
-
-	// TODO: tightly couple here for now to develop logic
-	// Will decouple via the use of generics
-	monolith *deneb.BeaconState
 }
 
 type Config struct {
@@ -37,8 +31,7 @@ func New(cfg Config) (*DB, error) {
 		return nil, err
 	}
 	return &DB{
-		db:       db,
-		monolith: &deneb.BeaconState{},
+		db: db,
 	}, nil
 }
 
@@ -77,14 +70,6 @@ func (d *DB) Set(key []byte, value []byte) error {
 	return nil
 }
 
-func (d *DB) Save() error {
-	root, err := d.monolith.GetTree()
-	if err != nil {
-		return err
-	}
-	return d.hackyFastSszSave(root, 1)
-}
-
 func keyBytes(gindex uint64) []byte {
 	key := make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, gindex)
@@ -115,39 +100,6 @@ func (d *DB) save(node *tree.Node, gindex uint64) error {
 			return err
 		}
 		if err := d.save(node.Right, 2*gindex+1); err != nil {
-			return err
-		}
-	default:
-		return errors.New("node has only one child")
-	}
-	return nil
-}
-
-func (d *DB) hackyFastSszSave(node *ssz.Node, gindex uint64) error {
-	if node == nil {
-		return errors.New("node cannot be nil")
-	}
-
-	// Save the node
-	key := make([]byte, 8)
-	binary.LittleEndian.PutUint64(key, gindex)
-	// TODO this rehashes the entire subtree
-	val := node.Hash()
-	if err := d.Set(key, val); err != nil {
-		return err
-	}
-
-	left := getLeftNode(node)
-	right := getRightNode(node)
-
-	switch {
-	case left == nil && right == nil:
-		return nil
-	case left != nil && right != nil:
-		if err := d.hackyFastSszSave(left, 2*gindex); err != nil {
-			return err
-		}
-		if err := d.hackyFastSszSave(right, 2*gindex+1); err != nil {
 			return err
 		}
 	default:
@@ -202,47 +154,6 @@ func (d *DB) getNodeBytes(gindex uint64, lenBz uint64) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-func (d *DB) Load(um ssz.Unmarshaler) error {
-	root, err := d.getNode(1)
-	var buf bytes.Buffer
-	err = d.leafBytes(root, &buf, 1)
-	if err != nil {
-		return err
-	}
-	return um.UnmarshalSSZ(buf.Bytes())
-}
-
-func (d *DB) leafBytes(node *tree.Node, w io.Writer, gindex uint64) error {
-	li := 2 * gindex
-	ri := 2*gindex + 1
-	left, err := d.getNode(li)
-	if err != nil {
-		return err
-	}
-	right, err := d.getNode(ri)
-	if err != nil {
-		return err
-	}
-	switch {
-	case left == nil && right == nil:
-		if node.IsEmpty {
-			return nil
-		}
-		_, err = w.Write(node.Value)
-		return err
-	case left != nil && right != nil:
-		if err = d.leafBytes(left, w, li); err != nil {
-			return err
-		}
-		if err = d.leafBytes(right, w, ri); err != nil {
-			return err
-		}
-	default:
-		return errors.New("node has only one child")
-	}
-	return nil
 }
 
 func getLeftNode(node *ssz.Node) *ssz.Node {

@@ -25,30 +25,6 @@ func testBeaconState() (*deneb.BeaconState, error) {
 	return state, nil
 }
 
-func TestDB_Save(t *testing.T) {
-	dir := t.TempDir()
-
-	t.Logf("temp dir: %s", dir)
-	dbPath := dir + "/sszdb.db"
-
-	db, err := sszdb.New(sszdb.Config{Path: dbPath})
-	require.NoError(t, err)
-	st, err := testBeaconState()
-	require.NoError(t, err)
-
-	// remarshal
-	_, err = st.MarshalSSZ()
-	require.NoError(t, err)
-
-	err = db.SaveMonolith(st)
-	require.NoError(t, err)
-
-	loaded := &deneb.BeaconState{}
-	require.NoError(t, db.Load(loaded))
-
-	require.NoError(t, db.Close())
-}
-
 func TestDB_Bespoke(t *testing.T) {
 	dir := t.TempDir() + "/sszdb.db"
 	db, err := sszdb.New(sszdb.Config{Path: dir})
@@ -101,52 +77,26 @@ func TestDB_Bespoke(t *testing.T) {
 	err = db.SaveMonolith(beacon)
 	require.NoError(t, err)
 
-	// test bespoke reader
-	bespokeRdr := sszdb.BespokeDBReader{db}
-
-	bz, err := bespokeRdr.GetGenesisValidatorsRoot()
-	require.NoError(t, err)
-	require.True(t, bytes.Equal(bz[:], beacon.GenesisValidatorsRoot[:]))
-
-	slot, err := bespokeRdr.GetSlot()
-	require.NoError(t, err)
-	require.Equal(t, beacon.Slot, slot)
-
-	fork, err := bespokeRdr.GetFork()
-	require.NoError(t, err)
-	require.Equal(t, beacon.Fork, fork)
-
-	latestHeader, err := bespokeRdr.GetLatestBlockHeader()
-	require.NoError(t, err)
-	require.Equal(t, beacon.LatestBlockHeader, latestHeader)
-
-	roots, err := bespokeRdr.GetBlockRoots()
-	require.NoError(t, err)
-	require.Equal(t, len(beacon.BlockRoots), len(roots))
-	for i, r := range roots {
-		require.Equal(t, beacon.BlockRoots[i], r)
-	}
-
 	// test metadata reader
 	metadataRdr := sszdb.MetadataDB{db}
 
-	bz, err = metadataRdr.GetGenesisValidatorsRoot()
+	bz, err := metadataRdr.GetGenesisValidatorsRoot()
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(bz[:], beacon.GenesisValidatorsRoot[:]))
 
-	slot, err = metadataRdr.GetSlot()
+	slot, err := metadataRdr.GetSlot()
 	require.NoError(t, err)
 	require.Equal(t, beacon.Slot, slot)
 
-	fork, err = metadataRdr.GetFork()
+	fork, err := metadataRdr.GetFork()
 	require.NoError(t, err)
 	require.Equal(t, beacon.Fork, fork)
 
-	latestHeader, err = metadataRdr.GetLatestBlockHeader()
+	latestHeader, err := metadataRdr.GetLatestBlockHeader()
 	require.NoError(t, err)
 	require.Equal(t, beacon.LatestBlockHeader, latestHeader)
 
-	roots, err = metadataRdr.GetBlockRoots()
+	roots, err := metadataRdr.GetBlockRoots()
 	require.NoError(t, err)
 	require.Equal(t, len(beacon.BlockRoots), len(roots))
 	for i, r := range roots {
