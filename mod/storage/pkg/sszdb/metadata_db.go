@@ -20,7 +20,13 @@ func (d *MetadataDB) getLeafBytes(path objectPath) ([]byte, error) {
 		return nil, fmt.Errorf("path %v not found", path)
 	}
 
-	return d.getNodeBytes(schemaNode.gindex, schemaNode.length)
+	length := schemaNode.size
+	// special case vector of bytes
+	if schemaNode.vector > 0 && length == 1 {
+		length = schemaNode.vector
+	}
+
+	return d.getNodeBytes(schemaNode.gindex, length)
 }
 
 func (d *MetadataDB) GetGenesisValidatorsRoot() (common.Root, error) {
@@ -103,7 +109,7 @@ func (d *MetadataDB) GetLatestBlockHeader() (*types.BeaconBlockHeader, error) {
 func (d *MetadataDB) GetBlockRoots() ([]common.Root, error) {
 	path := objectPath{"block_roots", "__len__"}
 	schemaNode := getSchemaNode(path)
-	bz, err := d.getNodeBytes(schemaNode.gindex, schemaNode.length)
+	bz, err := d.getNodeBytes(schemaNode.gindex, schemaNode.size)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +132,7 @@ func (d *MetadataDB) GetValidatorAtIndex(index uint64) (*types.Validator, error)
 	path := objectPath{"validators", strconv.FormatUint(index, 10)}
 	val := &types.Validator{}
 
-	bz, err := d.getLeafBytes(append(path, "pubkey"))
+	bz, err := d.getLeafBytes(append(path, "pubkey", "0"))
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +186,7 @@ func (d *MetadataDB) GetValidatorAtIndex(index uint64) (*types.Validator, error)
 func (d *MetadataDB) GetValidators() ([]*types.Validator, error) {
 	path := objectPath{"validators", "__len__"}
 	schemaNode := getSchemaNode(path)
-	bz, err := d.getNodeBytes(schemaNode.gindex, schemaNode.length)
+	bz, err := d.getNodeBytes(schemaNode.gindex, schemaNode.size)
 	if err != nil {
 		return nil, err
 	}
