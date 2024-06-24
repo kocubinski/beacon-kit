@@ -18,22 +18,14 @@
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 // TITLE.
 
-package event
+package config
 
-import "github.com/ethereum/go-ethereum/event"
+import "github.com/cosmos/cosmos-sdk/client/config"
 
-// Subscription is a subscription to a feed.
-type Subscription = event.Subscription
-
-type Feed = event.Feed
-
-// FeedOf is a feed of events.
-// It is a wrapper around the event.FeedOf type.
-type FeedOf[
-	E ~string,
-	T interface {
-		Type() E
-	},
-] struct {
-	event.FeedOf[T]
+// InitClientConfig sets up the default client configuration, allowing for
+// overrides.
+func InitClientConfig() (string, interface{}) {
+	clientCfg := config.DefaultConfig()
+	clientCfg.KeyringBackend = "test"
+	return config.DefaultClientConfigTemplate, clientCfg
 }
