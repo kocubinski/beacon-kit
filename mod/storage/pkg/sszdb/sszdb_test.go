@@ -25,10 +25,7 @@ func testBeaconState() (*deneb.BeaconState, error) {
 	return state, nil
 }
 
-func TestDB_Bespoke(t *testing.T) {
-	dir := t.TempDir() + "/sszdb.db"
-	db, err := sszdb.New(sszdb.Config{Path: dir})
-	require.NoError(t, err)
+func TestDB_Metadata(t *testing.T) {
 	beacon, err := testBeaconState()
 	require.NoError(t, err)
 
@@ -74,6 +71,10 @@ func TestDB_Bespoke(t *testing.T) {
 		},
 	}
 
+	dir := t.TempDir() + "/sszdb.db"
+	db, err := sszdb.New(sszdb.Config{Path: dir})
+	require.NoError(t, err)
+
 	err = db.SaveMonolith(beacon)
 	require.NoError(t, err)
 
@@ -113,4 +114,42 @@ func TestDB_Bespoke(t *testing.T) {
 	for i, v := range vals {
 		require.Equal(t, beacon.Validators[i], v)
 	}
+
+	schemaDb, err := sszdb.NewSchemaDb(db, beacon)
+	require.NoError(t, err)
+
+	bz, err = schemaDb.GetGenesisValidatorsRoot()
+	require.NoError(t, err)
+	require.True(t, bytes.Equal(bz[:], beacon.GenesisValidatorsRoot[:]))
+
+	slot, err = schemaDb.GetSlot()
+	require.NoError(t, err)
+	require.Equal(t, beacon.Slot, slot)
+
+	fork, err = schemaDb.GetFork()
+	require.NoError(t, err)
+	require.Equal(t, beacon.Fork, fork)
+
+	latestHeader, err = schemaDb.GetLatestBlockHeader()
+	require.NoError(t, err)
+	require.Equal(t, beacon.LatestBlockHeader, latestHeader)
+
+	roots, err = schemaDb.GetBlockRoots()
+	require.NoError(t, err)
+	require.Equal(t, len(beacon.BlockRoots), len(roots))
+	for i, r := range roots {
+		require.Equal(t, beacon.BlockRoots[i], r)
+	}
+
+	val0, err = schemaDb.GetValidatorAtIndex(0)
+	require.NoError(t, err)
+	require.Equal(t, beacon.Validators[0], val0)
+
+	vals, err = schemaDb.GetValidators()
+	require.NoError(t, err)
+	require.Equal(t, len(beacon.Validators), len(vals))
+	for i, v := range vals {
+		require.Equal(t, beacon.Validators[i], v)
+	}
+
 }

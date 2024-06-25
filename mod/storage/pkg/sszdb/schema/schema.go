@@ -11,9 +11,9 @@ import (
 type SSZType interface {
 	Size() uint64
 	Chunks() uint64
+	Position(p pathSegment) (uint64, uint8, error)
 
-	descend(p pathSegment) SSZType
-	position(p pathSegment) (uint64, uint64, uint64, error)
+	child(p pathSegment) SSZType
 }
 
 // Basic Type
@@ -26,10 +26,10 @@ func (b Basic) Size() uint64 { return b.size }
 
 func (b Basic) Chunks() uint64 { return 1 }
 
-func (b Basic) descend(_ pathSegment) SSZType { return b }
+func (b Basic) child(_ pathSegment) SSZType { return b }
 
-func (b Basic) position(p pathSegment) (uint64, uint64, uint64, error) {
-	return 0, 0, 0, errors.New("basic type has no position")
+func (b Basic) Position(p pathSegment) (uint64, uint8, error) {
+	return 0, 0, errors.New("basic type has children")
 }
 
 // Container Type
@@ -45,10 +45,14 @@ func (c Container) Length() uint64 { return uint64(len(c.Fields)) }
 
 func (c Container) Chunks() uint64 { return uint64(len(c.Fields)) }
 
-func (c Container) descend(p pathSegment) SSZType { return c.Fields[p.s] }
+func (c Container) child(p pathSegment) SSZType { return c.Fields[p.s] }
 
-func (c Container) position(p pathSegment) (uint64, uint64, uint64, error) {
-	return c.FieldIndex[p.s], 0, c.Fields[p.s].Size(), nil
+func (c Container) Position(p pathSegment) (uint64, uint8, error) {
+	pos, ok := c.FieldIndex[p.s]
+	if !ok {
+		return 0, 0, fmt.Errorf("field %s not found", p.s)
+	}
+	return pos, 0, nil
 }
 
 // Enumerable Type (vectors and lists)
@@ -66,7 +70,7 @@ func (e Enumerable) Chunks() uint64 {
 	return uint64(math.Ceil(x))
 }
 
-func (e Enumerable) descend(_ pathSegment) SSZType {
+func (e Enumerable) child(_ pathSegment) SSZType {
 	return e.Element
 }
 
@@ -77,15 +81,18 @@ func (e Enumerable) Length() uint64 {
 	return e.length
 }
 
-func (e Enumerable) position(p pathSegment) (uint64, uint64, uint64, error) {
+func (e Enumerable) Position(p pathSegment) (uint64, uint8, error) {
 	if p.s != "" {
-		return 0, 0, 0, fmt.Errorf("expected index, got name %s", p.s)
+		return 0, 0, fmt.Errorf("expected index, got name %s", p.s)
 	}
 	start := p.i * e.Element.Size()
 	return uint64(math.Floor(float64(start) / 32)),
-		start % 32,
-		start%32 + e.Element.Size(),
+		uint8(start % 32),
 		nil
+}
+
+func (e Enumerable) IsByteVector() bool {
+	return e.Element.Size() == 1 && e.length > 0
 }
 
 // Object Path
@@ -96,6 +103,14 @@ type pathSegment struct {
 }
 
 type ObjectPath []pathSegment
+
+func Path(names ...string) ObjectPath {
+	path := make(ObjectPath, len(names))
+	for i, name := range names {
+		path[i] = pathSegment{s: name}
+	}
+	return path
+}
 
 func (o ObjectPath) AppendIndex(i uint64) ObjectPath {
 	return append(o, pathSegment{i: i})
@@ -112,6 +127,12 @@ const (
 	uint64Size = 8
 )
 
+type Node struct {
+	SSZType
+	GIndex uint64
+	Offset uint8
+}
+
 // API
 
 func CreateSchema(obj any) (SSZType, error) {
@@ -119,21 +140,22 @@ func CreateSchema(obj any) (SSZType, error) {
 	return traverse(typ, nil)
 }
 
-func GetGeneralizedIndex(typ SSZType, path ObjectPath) (any, error) {
-	gindex := uint64(1)
+func GetTreeNode(typ SSZType, path ObjectPath) (Node, error) {
+	var (
+		gindex = uint64(1)
+		offset uint8
+	)
 	for _, p := range path {
-		if _, ok := typ.(Basic); ok {
-			return gindex, nil
-		}
 		if p.s == "__len__" {
 			if _, ok := typ.(Enumerable); !ok {
-				return 0, fmt.Errorf("type %T is not enumerable", typ)
+				return Node{}, fmt.Errorf("type %T is not enumerable", typ)
 			}
 			gindex = 2*gindex + 1
+			offset = 0
 		} else {
-			pos, _, _, err := typ.position(p)
+			pos, off, err := typ.Position(p)
 			if err != nil {
-				return 0, err
+				return Node{}, err
 			}
 			i := uint64(1)
 			if e, ok := typ.(Enumerable); ok && e.maxLength > 0 {
@@ -141,10 +163,11 @@ func GetGeneralizedIndex(typ SSZType, path ObjectPath) (any, error) {
 				i = 2
 			}
 			gindex = gindex*i*nextPowerOfTwo(typ.Chunks()) + pos
-			typ = typ.descend(p)
+			typ = typ.child(p)
+			offset = off
 		}
 	}
-	return gindex, nil
+	return Node{SSZType: typ, GIndex: gindex, Offset: offset}, nil
 }
 
 func traverse(typ reflect.Type, field *reflect.StructField) (SSZType, error) {
@@ -166,7 +189,7 @@ func traverse(typ reflect.Type, field *reflect.StructField) (SSZType, error) {
 	case reflect.Slice:
 		// hack: slices with an `ssz-size` tag to be treated as vectors.
 		// I'd prefer to not support this and change the struct definition instead.
-		length, ok, err := getIntStructTagValue(field, "ssz-size")
+		length, ok, err := getTagVal(field, "ssz-size")
 		if ok {
 			// vector
 			elemType, err := traverse(typ.Elem(), nil)
@@ -176,7 +199,7 @@ func traverse(typ reflect.Type, field *reflect.StructField) (SSZType, error) {
 			return Enumerable{Element: elemType, length: length}, nil
 		} else {
 			// list
-			length, ok, err = getIntStructTagValue(field, "ssz-max")
+			length, ok, err = getTagVal(field, "ssz-max")
 			if !ok {
 				return nil, err
 			}
@@ -198,8 +221,7 @@ func traverse(typ reflect.Type, field *reflect.StructField) (SSZType, error) {
 			Fields:     make(map[string]SSZType),
 			FieldIndex: make(map[string]uint64),
 		}
-		for i := range typ.NumField() {
-			field := typ.Field(i)
+		for i, field := range flattenStructFields(typ) {
 			sszType, err := traverse(field.Type, &field)
 			if err != nil {
 				return nil, err
@@ -213,16 +235,32 @@ func traverse(typ reflect.Type, field *reflect.StructField) (SSZType, error) {
 	}
 }
 
-func getIntStructTagValue(field *reflect.StructField, tag string) (uint64, bool, error) {
+func getTagVal(field *reflect.StructField, tag string) (uint64, bool, error) {
 	str := field.Tag.Get(tag)
 	if str == "" {
 		return 0, false, nil
 	}
 	i, err := strconv.ParseUint(str, 10, 64)
 	if err != nil {
-		return 0, false, fmt.Errorf("tag %s value %s not an integer: %w", tag, str, err)
+		return 0, false, fmt.Errorf(
+			"tag %s value %s not an integer: %w", tag, str, err)
 	}
 	return i, true, nil
+}
+
+func flattenStructFields(typ reflect.Type) []reflect.StructField {
+	var fields []reflect.StructField
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		if field.Anonymous {
+			// flatten embedded struct fields
+			embedded := flattenStructFields(field.Type)
+			fields = append(fields, embedded...)
+		} else {
+			fields = append(fields, field)
+		}
+	}
+	return fields
 }
 
 func nextPowerOfTwo(v uint64) uint64 {

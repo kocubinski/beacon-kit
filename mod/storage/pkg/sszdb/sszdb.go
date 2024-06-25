@@ -132,6 +132,7 @@ func (d *DB) mustGetNode(gindex uint64) (*tree.Node, error) {
 	return tree.DecodeNode(bz)
 }
 
+// todo: refactor to use offset
 func (d *DB) getNodeBytes(gindex uint64, lenBz uint64) ([]byte, error) {
 	const chunksize = 32
 
