@@ -18,17 +18,24 @@
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 // TITLE.
 
-package merkle
+package context
 
-// U64 is an interface that wraps the uint64 type.
-// It is used to prevent circular dependencies between
-// the merkle package and the primitives package.
-type U64[T ~uint64] interface {
-	~uint64
-	// NextPowerOfTwo returns the smallest power of
-	// two that is greater than or equal to T.
-	NextPowerOfTwo() T
-	// ILog2Ceil returns the ceiling of the binary
-	// logarithm of T as a uint8.
-	ILog2Ceil() uint8
+import (
+	"cosmossdk.io/log"
+	"github.com/berachain/beacon-kit/mod/log/pkg/noop"
+	"github.com/cosmos/cosmos-sdk/server"
+	"github.com/spf13/cobra"
+)
+
+// GetServerContextFromCmd returns a Context from a command or an empty Context
+// if it has not been set.
+func GetServerContextFromCmd(cmd *cobra.Command) *server.Context {
+	if v := cmd.Context().Value(server.ServerContextKey); v != nil {
+		serverCtxPtr, _ := v.(*server.Context)
+		return serverCtxPtr
+	}
+
+	return newDefaultContextWithLogger(
+		&noop.Logger[any, log.Logger]{},
+	)
 }

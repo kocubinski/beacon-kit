@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"cosmossdk.io/depinject"
+	"github.com/berachain/beacon-kit/mod/cli/pkg/utils/context"
 	"github.com/berachain/beacon-kit/mod/cli/pkg/utils/parser"
 	"github.com/berachain/beacon-kit/mod/consensus-types/pkg/types"
 	"github.com/berachain/beacon-kit/mod/errors"
@@ -36,8 +37,8 @@ import (
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/crypto"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/math"
 	"github.com/berachain/beacon-kit/mod/primitives/pkg/version"
+	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
-	"github.com/cosmos/cosmos-sdk/server"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -50,7 +51,7 @@ func AddGenesisDepositCmd(cs common.ChainSpec) *cobra.Command {
 		Use:   "add-premined-deposit",
 		Short: "adds a validator to the genesis file",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			serverCtx := server.GetServerContextFromCmd(cmd)
+			serverCtx := context.GetServerContextFromCmd(cmd)
 			config := serverCtx.Config
 
 			_, valPubKey, err := genutil.InitializeNodeValidatorFiles(
@@ -69,7 +70,7 @@ func AddGenesisDepositCmd(cs common.ChainSpec) *cobra.Command {
 			)
 
 			// Get the BLS signer.
-			blsSigner, err := getBLSSigner()
+			blsSigner, err := getBLSSigner(client.GetViperFromCmd(cmd))
 			if err != nil {
 				return err
 			}
@@ -188,12 +189,12 @@ func writeDepositToFile(
 }
 
 // getBLSSigner returns a BLS signer based on the override node key flag.
-func getBLSSigner() (crypto.BLSSigner, error) {
+func getBLSSigner(v *viper.Viper) (crypto.BLSSigner, error) {
 	var blsSigner crypto.BLSSigner
 	if err := depinject.Inject(
 		depinject.Configs(
 			depinject.Supply(
-				viper.GetViper(),
+				v,
 			),
 			depinject.Provide(
 				components.ProvideBlsSigner,

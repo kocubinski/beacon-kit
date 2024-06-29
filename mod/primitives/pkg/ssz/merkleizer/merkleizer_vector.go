@@ -18,40 +18,38 @@
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 // TITLE.
 
-package genesis
+package merkleizer
 
-import (
-	"github.com/berachain/beacon-kit/mod/primitives/pkg/common"
-	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/spf13/cobra"
-)
-
-// Commands builds the genesis-related command. Users may
-// provide application specific commands as a parameter.
-func Commands(
-	cs common.ChainSpec,
-	cmds ...*cobra.Command,
-) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:                        "genesis",
-		Short:                      "Application's genesis-related subcommands",
-		DisableFlagParsing:         false,
-		SuggestionsMinimumDistance: 2, //nolint:mnd // from sdk.
-		RunE:                       client.ValidateCmd,
+// MerkleizeVectorBasic implements the SSZ merkleization algorithm
+// for a vector of basic types.
+func (m *merkleizer[RootT, T]) MerkleizeVectorBasic(
+	value []T,
+) (RootT, error) {
+	// merkleize(pack(value))
+	// if value is a basic object or a vector of basic objects.
+	packed, _, err := pack[RootT](value)
+	if err != nil {
+		return [32]byte{}, err
 	}
+	return m.Merkleize(packed)
+}
 
-	// Adding subcommands for genesis-related operations.
-	cmd.AddCommand(
-		AddGenesisDepositCmd(cs),
-		CollectGenesisDepositsCmd(),
-		AddExecutionPayloadCmd(cs),
-		GetGenesisValidatorRootCmd(cs),
+// MerkleizeVectorComposite implements the SSZ merkleization algorithm for a
+// vector
+// of composite types.
+func (m *merkleizer[RootT, T]) MerkleizeVectorComposite(
+	value []T,
+) (RootT, error) {
+	var (
+		err  error
+		htrs = m.bytesBuffer.Get(len(value))
 	)
 
-	// Add additional commands
-	for _, subCmd := range cmds {
-		cmd.AddCommand(subCmd)
+	for i, el := range value {
+		htrs[i], err = el.HashTreeRoot()
+		if err != nil {
+			return RootT{}, err
+		}
 	}
-
-	return cmd
+	return m.Merkleize(htrs)
 }
